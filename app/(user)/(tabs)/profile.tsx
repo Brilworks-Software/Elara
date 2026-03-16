@@ -2,6 +2,10 @@ import { ConfirmationModal } from "@/components/ConfirmationModal";
 import { COLORS } from "@/constants/colors";
 import { useAuthState, useLogout } from "@/Firebase/hooks/useAuth";
 import { useUserProfile } from "@/Firebase/hooks/useUser";
+import {
+    requestNotificationPermission,
+    retryFCMTokenRegistration,
+} from "@/Firebase/services/NotificationService";
 import { useRouter } from "expo-router";
 import {
     Bell,
@@ -38,10 +42,55 @@ export default function ProfileScreen() {
   const [showSignOutModal, setShowSignOutModal] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
-  const handleToggleNotifications = () => {
-    setNotificationsEnabled(!notificationsEnabled);
-    // You can add actual notification enabling/disabling logic here
-    // For example: update Firebase user preferences, configure push notifications, etc.
+  const handleToggleNotifications = async () => {
+    if (!user?.uid) return;
+
+    // If enabling notifications, request permission
+    if (!notificationsEnabled) {
+      try {
+        console.log("User is enabling notifications, requesting permission...");
+
+        // Request permission
+        const hasPermission = await requestNotificationPermission();
+        console.log("Permission result:", hasPermission);
+
+        if (hasPermission) {
+          // Retry FCM token registration
+          const tokenResult = await retryFCMTokenRegistration(user.uid);
+          console.log("Token registration result:", tokenResult);
+
+          if (tokenResult.success) {
+            setNotificationsEnabled(true);
+            Alert.alert(
+              "Success",
+              "Notifications have been enabled! You'll now receive reminders and updates.",
+            );
+          } else {
+            Alert.alert(
+              "Partial Setup",
+              tokenResult.error ||
+                "Notifications permission granted, but we're still setting up your device. Try again in a moment.",
+            );
+            setNotificationsEnabled(true);
+          }
+        } else {
+          Alert.alert(
+            "Permission Denied",
+            "Notifications are disabled. Please enable them in Settings > Elara > Notifications.",
+          );
+        }
+      } catch (error: any) {
+        console.error("Error enabling notifications:", error);
+        Alert.alert(
+          "Error",
+          error.message || "Failed to enable notifications. Please try again.",
+        );
+      }
+    } else {
+      // If disabling notifications, just toggle
+      setNotificationsEnabled(false);
+      // You can add logic here to disable notifications in Firebase
+    }
   };
 
   const handleSignOut = async () => {

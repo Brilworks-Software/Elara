@@ -1,28 +1,17 @@
-import { getApp, initializeApp } from "@react-native-firebase/app";
-import { getAuth } from "@react-native-firebase/auth";
-import { getFirestore } from "@react-native-firebase/firestore";
+import authModule from "@react-native-firebase/auth";
+import firestoreModule from "@react-native-firebase/firestore";
 
-// Initialize Firebase
-const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  databaseURL: process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL,
-  projectId: process.env.EXPO_PUBLIC_PROJECT_ID,
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
+// For React Native Firebase, the configuration is automatically loaded from:
+// - iOS: GoogleService-Info.plist
+// - Android: google-services.json
+// Firebase is initialized in the native code (AppDelegate for iOS, MainApplication for Android)
+
+// Get Firebase service instances by calling the modules as functions
+export const auth = authModule();
+export const firestore = firestoreModule();
+
+// Export a default for compatibility
+export default {
+  auth,
+  firestore,
 };
-
-// Initialize Firebase App
-let app;
-try {
-  app = getApp();
-} catch {
-  app = initializeApp(firebaseConfig);
-}
-
-// Get Firebase services
-export const auth = getAuth(app);
-export const firestore = getFirestore(app);
-export default app;

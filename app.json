@@ -13,10 +13,13 @@
       "bundleIdentifier": "com.brilworksdigital.Elara",
       "infoPlist": {
         "UIBackgroundModes": [
+          "audio",
           "audio"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       },
-      "appleTeamId": "K7Y5QY6LMX"
+      "appleTeamId": "K7Y5QY6LMX",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
@@ -41,6 +44,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "@react-native-firebase/app",
       "expo-router",
       [
         "expo-splash-screen",
@@ -64,7 +68,26 @@
       "@react-native-community/datetimepicker",
       "expo-video",
       "expo-audio",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0"
+          },
+          "ios": {
+            "useFrameworks": "static",
+            "modularHeaders": true,
+            "deploymentTarget": "15.1",
+            "forceStaticLinking": [
+              "@react-native-firebase/app",
+              "RNFBApp"
+            ]
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

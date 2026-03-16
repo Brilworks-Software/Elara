@@ -1,4 +1,4 @@
-import { onAuthStateChanged, User } from "@react-native-firebase/auth";
+import { User } from "@react-native-firebase/auth";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { auth } from "../firebase";
@@ -68,7 +68,7 @@ export const useAuthState = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
       setUser(user);
       setLoading(false);
     });

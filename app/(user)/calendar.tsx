@@ -1,35 +1,37 @@
 import { COLORS } from "@/constants/colors";
 import { useAuthState } from "@/Firebase/hooks/useAuth";
 import {
-  useCreateEvent,
-  useDeleteEvent,
-  useEventsByDate,
-  useUserEvents,
+    useCreateEvent,
+    useDeleteEvent,
+    useEventsByDate,
+    useUserEvents,
 } from "@/Firebase/hooks/useCalendar";
 import { CalendarEvent } from "@/Firebase/services/CalendarService";
+import { scheduleEventNotification } from "@/Firebase/services/NotificationService";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
 import {
-  ArrowLeft,
-  Calendar as CalendarIcon,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  Plus,
-  X,
+    ArrowLeft,
+    Calendar as CalendarIcon,
+    ChevronLeft,
+    ChevronRight,
+    Clock,
+    Plus,
+    X,
 } from "lucide-react-native";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -39,9 +41,11 @@ export default function CalendarScreen() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showAddEventModal, setShowAddEventModal] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [newEvent, setNewEvent] = useState({
     title: "",
-    time: "",
+    time: new Date(),
+    timeString: "",
     type: "personal" as CalendarEvent["type"],
   });
 
@@ -91,6 +95,20 @@ export default function CalendarScreen() {
 
   const formatDate = (date: Date) => {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+
+  const formatTimeString = (date: Date) => {
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${hours}:${minutes}`;
+  };
+
+  const formatDisplayTime = (date: Date) => {
+    const hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    const ampm = hours >= 12 ? "PM" : "AM";
+    const displayHours = hours % 12 || 12;
+    return `${displayHours}:${minutes} ${ampm}`;
   };
 
   // Calculate selected date string after formatDate is defined
@@ -161,7 +179,24 @@ export default function CalendarScreen() {
     setSelectedDate(newDate);
   };
 
-  const handleAddEvent = () => {
+  const handleTimePickerChange = (
+    event: any,
+    selectedTime: Date | undefined,
+  ) => {
+    if (Platform.OS === "android") {
+      setShowTimePicker(false);
+    }
+    if (selectedTime) {
+      const timeString = formatTimeString(selectedTime);
+      setNewEvent({
+        ...newEvent,
+        time: selectedTime,
+        timeString: timeString,
+      });
+    }
+  };
+
+  const handleAddEvent = async () => {
     if (!newEvent.title || !user?.uid) return;
 
     createEventMutation.mutate(
@@ -170,18 +205,39 @@ export default function CalendarScreen() {
         eventData: {
           date: selectedDateString,
           title: newEvent.title,
-          time: newEvent.time || "",
+          time: newEvent.timeString,
           type: newEvent.type,
         },
       },
       {
-        onSuccess: () => {
-          setNewEvent({ title: "", time: "", type: "personal" });
+        onSuccess: async (eventData: any) => {
+          // If event has a time, schedule a notification
+          if (newEvent.timeString && eventData?.eventId) {
+            try {
+              await scheduleEventNotification({
+                userId: user.uid,
+                eventId: eventData.eventId,
+                eventTitle: newEvent.title,
+                eventDate: selectedDateString,
+                eventTime: newEvent.timeString,
+                eventType: newEvent.type,
+              });
+            } catch (error) {
+              console.warn("Failed to schedule notification:", error);
+              // Don't fail the event creation if notification scheduling fails
+            }
+          }
+
+          setNewEvent({
+            title: "",
+            time: new Date(),
+            timeString: "",
+            type: "personal",
+          });
           setShowAddEventModal(false);
         },
         onError: (error) => {
           console.error("Failed to create event:", error);
-          // You can add user-facing error message here
         },
       },
     );
@@ -195,13 +251,12 @@ export default function CalendarScreen() {
       {
         onError: (error) => {
           console.error("Failed to delete event:", error);
-          // You can add user-facing error message here
         },
       },
     );
   };
 
-  const getEventColor = (type: Event["type"]) => {
+  const getEventColor = (type: CalendarEvent["type"]) => {
     switch (type) {
       case "appointment":
         return "#FF6B9D";
@@ -423,15 +478,38 @@ export default function CalendarScreen() {
 
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Time (Optional)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 10:00 AM"
-                  value={newEvent.time}
-                  onChangeText={(text) =>
-                    setNewEvent({ ...newEvent, time: text })
-                  }
-                />
+                <Pressable
+                  style={styles.timePickerButton}
+                  onPress={() => setShowTimePicker(true)}
+                >
+                  <Clock size={18} color={COLORS.PRIMARY} />
+                  <Text style={styles.timePickerButtonText}>
+                    {newEvent.timeString
+                      ? formatDisplayTime(newEvent.time)
+                      : "Select time"}
+                  </Text>
+                </Pressable>
               </View>
+
+              {/* Time Picker Modal for iOS/Android */}
+              {showTimePicker && (
+                <View style={styles.timePickerContainer}>
+                  <DateTimePicker
+                    value={newEvent.time}
+                    mode="time"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={handleTimePickerChange}
+                  />
+                  {Platform.OS === "ios" && (
+                    <Pressable
+                      style={styles.timePickerDone}
+                      onPress={() => setShowTimePicker(false)}
+                    >
+                      <Text style={styles.timePickerDoneText}>Done</Text>
+                    </Pressable>
+                  )}
+                </View>
+              )}
 
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Type</Text>
@@ -809,6 +887,36 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     color: "#1A1A1A",
+  },
+  timePickerButton: {
+    backgroundColor: "#F8F8F8",
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  timePickerButtonText: {
+    fontSize: 16,
+    color: "#1A1A1A",
+    fontWeight: "500",
+  },
+  timePickerContainer: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    marginBottom: 16,
+  },
+  timePickerDone: {
+    padding: 12,
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#E0E0E0",
+  },
+  timePickerDoneText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.PRIMARY,
   },
   typeButtons: {
     flexDirection: "row",

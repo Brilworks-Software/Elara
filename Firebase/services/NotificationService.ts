@@ -118,3 +118,74 @@ export const cleanupFCM = async (
     return { success: false, error: error.message };
   }
 };
+
+/**
+ * Schedule a push notification for an event
+ * Stores scheduled notification data in Firestore
+ * A Cloud Function will check and send notifications at scheduled times
+ */
+export const scheduleEventNotification = async (notificationData: {
+  userId: string;
+  eventId: string;
+  eventTitle: string;
+  eventDate: string; // YYYY-MM-DD
+  eventTime: string; // HH:MM
+  eventType: string;
+}): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const { userId, eventId, eventTitle, eventDate, eventTime, eventType } =
+      notificationData;
+
+    // Parse the notification time
+    const [hours, minutes] = eventTime.split(":").map(Number);
+    const notificationDateTime = new Date(`${eventDate}T${eventTime}:00`);
+
+    // Store notification schedule in Firestore
+    const scheduledNotificationRef = firestore()
+      .collection("scheduledNotifications")
+      .doc(`${eventId}_${userId}`);
+
+    await scheduledNotificationRef.set({
+      userId,
+      eventId,
+      eventTitle,
+      eventDate,
+      eventTime,
+      eventType,
+      scheduledFor: firestore.Timestamp.fromDate(notificationDateTime),
+      createdAt: firestore.FieldValue.serverTimestamp(),
+      sent: false,
+      dismissed: false,
+    });
+
+    console.log(
+      `Notification scheduled for ${eventTitle} at ${eventTime} on ${eventDate}`,
+    );
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error scheduling notification:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Cancel a scheduled notification
+ */
+export const cancelScheduledNotification = async (
+  userId: string,
+  eventId: string,
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    await firestore()
+      .collection("scheduledNotifications")
+      .doc(`${eventId}_${userId}`)
+      .delete();
+
+    console.log("Scheduled notification cancelled");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error cancelling scheduled notification:", error);
+    return { success: false, error: error.message };
+  }
+};
